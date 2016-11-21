@@ -381,7 +381,7 @@ func TestConfiguration(t *testing.T) {
 	expectedConfiguration := aurora.ConfigBoth
 
 	if configuration != expectedConfiguration {
-		t.Errorf("Expected %s got %s", expectedConfiguration, configuration)
+		t.Errorf("Expected %v got %v", expectedConfiguration, configuration)
 	}
 
 	_, err = i.Configuration()

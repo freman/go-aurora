@@ -6,6 +6,5 @@ go:
   - tip
 
 script:
-  - go get -t ./..
   - go vet ./...
   - go test -v -cover ./...

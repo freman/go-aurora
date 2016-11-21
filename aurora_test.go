@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/freman/aurora"
+	"github.com/freman/go-aurora"
 )
 
 type mockSerial struct {

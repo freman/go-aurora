@@ -3,7 +3,7 @@ package aurora_test
 import (
 	"testing"
 
-	"github.com/freman/aurora"
+	"github.com/freman/go-aurora"
 )
 
 func TestStateString(t *testing.T) {

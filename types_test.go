@@ -122,3 +122,18 @@ func TestGlobalStateString(t *testing.T) {
 		t.Errorf("Unexpected string returned: %s", str)
 	}
 }
+
+
+func TestConfigurationStateString(t *testing.T) {
+	if str := aurora.ConfigurationState(0).String(); str != "System operating with both strings." {
+		t.Errorf("Unexpected string returned: %s", str)
+	}
+
+	if str := aurora.ConfigString1.String(); str != "String 1 connected, String 2 disconnected." {
+		t.Errorf("Unexpected string returned: %s", str)
+	}
+
+	if str := aurora.ConfigurationState(250).String(); str != "Unknown ConfigurationState(250)" {
+		t.Errorf("Unexpected string returned: %s", str)
+	}
+}

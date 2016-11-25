@@ -156,6 +156,16 @@ func (g GlobalState) String() string {
 	return fmt.Sprintf("Unknown GlobalState(%d)", byte(g))
 }
 
+
+func (c ConfigurationState) String() string {
+	if str, ok := configStates[c]; ok {
+		return str
+	}
+
+	return fmt.Sprintf("Unknown ConfigurationState(%d)", byte(c))
+}
+
+
 func (i InverterState) String() string {
 	if str, ok := inverterStates[i]; ok {
 		return str

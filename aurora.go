@@ -160,8 +160,8 @@ func (i *Inverter) ManufactureDate() (string, string, error) {
 		return "", "", err
 	}
 	year := string(result[2:4])
-	month := string(result[0:2])
-	return year, month, nil
+	week := string(result[0:2])
+	return year, week, nil
 }
 
 // FirmwareVersion returns the inverters firmware version

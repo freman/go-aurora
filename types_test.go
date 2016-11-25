@@ -123,7 +123,6 @@ func TestGlobalStateString(t *testing.T) {
 	}
 }
 
-
 func TestConfigurationStateString(t *testing.T) {
 	if str := aurora.ConfigurationState(0).String(); str != "System operating with both strings." {
 		t.Errorf("Unexpected string returned: %s", str)

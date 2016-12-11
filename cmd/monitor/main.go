@@ -84,7 +84,6 @@ func withDeadline(deadline time.Duration, f func() error) error {
 	case <-time.After(deadline):
 		return errors.New("Timeout while waiting for operation to complete")
 	}
-	return nil
 }
 
 func main() {

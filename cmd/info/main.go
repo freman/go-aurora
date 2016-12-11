@@ -20,8 +20,8 @@ func main() {
 	flag.Parse()
 
 	options := serial.Config{
-		Name:       *fPort,
-		Baud:       19200,
+		Name:   *fPort,
+		Baud:   19200,
 		Parity: serial.ParityNone,
 	}
 

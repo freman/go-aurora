@@ -19,13 +19,13 @@ func main() {
 	fPort := flag.String("p", "/dev/ttyUSB0", "Serial port")
 	flag.Parse()
 
-	options := serial.Config{
+	options := &serial.Config{
 		Name:   *fPort,
 		Baud:   19200,
 		Parity: serial.ParityNone,
 	}
 
-	port, err := serial.Open(options)
+	port, err := serial.OpenPort(options)
 	if err != nil {
 		log.Fatalf("serial.Open: %v", err)
 	}

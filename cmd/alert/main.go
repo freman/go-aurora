@@ -81,7 +81,7 @@ func main() {
 
 	sendMail(*fUsername, *fPassword, *fServer, *fSender, *fRecipient, []string{"Starting up..."})
 
-	options := serial.Config{
+	options := &serial.Config{
 		Name:   *fPort,
 		Baud:   19200,
 		Parity: serial.ParityNone,
@@ -113,7 +113,7 @@ func main() {
 		}
 
 		func() {
-			port, err := serial.Open(options)
+			port, err := serial.OpenPort(options)
 			if err != nil {
 				log.Printf("serial.Open: %v", err)
 				return

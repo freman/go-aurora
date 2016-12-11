@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/freman/go-aurora"
-	"github.com/jacobsa/go-serial/serial"
+	"github.com/tarm/serial"
 )
 
 func errCheck(what string, err error) {
@@ -19,14 +19,10 @@ func main() {
 	fPort := flag.String("p", "/dev/ttyUSB0", "Serial port")
 	flag.Parse()
 
-	options := serial.OpenOptions{
-		PortName:              *fPort,
-		BaudRate:              19200,
-		DataBits:              8,
-		StopBits:              1,
-		ParityMode:            serial.PARITY_NONE,
-		InterCharacterTimeout: 250,
-		MinimumReadSize:       4,
+	options := serial.Config{
+		Name:       *fPort,
+		Baud:       19200,
+		Parity: serial.ParityNone,
 	}
 
 	port, err := serial.Open(options)

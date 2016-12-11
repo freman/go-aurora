@@ -1,0 +1,8 @@
+UnitAddresses=[2]
+UpdateRate="1m"
+Deadline="5s"
+Listen=":9090"
+
+[Comms]
+Name="/dev/aurora"
+Baud=19200

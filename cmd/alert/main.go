@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/freman/go-aurora"
-	"github.com/jacobsa/go-serial/serial"
+	"github.com/tarm/serial"
 )
 
 const errorStringFormat = "String %d didn't reach %f, the highest recorded output current was %f"
@@ -33,7 +33,7 @@ func sleep(hour int, tomorrow bool) {
 }
 
 func sendMail(username, password, server, from, recipient string, lines []string) {
-	rubbish := strings.Split(server,"#")
+	rubbish := strings.Split(server, "#")
 	var auth smtp.Auth
 	if len(rubbish) > 1 {
 		auth = smtp.PlainAuth("", username, password, rubbish[1])
@@ -46,7 +46,7 @@ func sendMail(username, password, server, from, recipient string, lines []string
 	msgLines := append([]string{
 		"To: " + recipient,
 		"Subject: Aurora Alert",
-		""}, lines...);
+		""}, lines...)
 	msg := []byte(strings.Join(msgLines, "\r\n"))
 	err := smtp.SendMail(server, auth, from, to, msg)
 	if err != nil {
@@ -81,14 +81,10 @@ func main() {
 
 	sendMail(*fUsername, *fPassword, *fServer, *fSender, *fRecipient, []string{"Starting up..."})
 
-	options := serial.OpenOptions{
-		PortName:              *fPort,
-		BaudRate:              19200,
-		DataBits:              8,
-		StopBits:              1,
-		ParityMode:            serial.PARITY_NONE,
-		InterCharacterTimeout: 250,
-		MinimumReadSize:       4,
+	options := serial.Config{
+		Name:   *fPort,
+		Baud:   19200,
+		Parity: serial.ParityNone,
 	}
 
 	string1Max := float64(0)
@@ -113,7 +109,7 @@ func main() {
 			string1Max = 0
 			string2Max = 0
 			sleep(*fCheckStart, tomorrow)
-			continue;
+			continue
 		}
 
 		func() {
@@ -126,7 +122,7 @@ func main() {
 			defer port.Close()
 
 			inverter := &aurora.Inverter{
-				Conn:    port,
+				Conn: port,
 
 				Address: 2,
 			}

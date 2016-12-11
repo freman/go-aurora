@@ -245,8 +245,8 @@ func main() {
 			return
 		}
 
-		rw.Header().Set("Cache-Control", "no-cache")
-		rw.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(js)
 	})

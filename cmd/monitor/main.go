@@ -223,9 +223,7 @@ func main() {
 					return err
 				})
 
-				if err != nil {
-					log.Fatal(err)
-				} else {
+				if err == nil {
 					buffer.Lock()
 					buffer.Results[address] = r
 					buffer.Unlock()

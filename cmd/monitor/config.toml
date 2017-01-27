@@ -1,8 +1,10 @@
-UnitAddresses=[2]
 UpdateRate="1m"
 Deadline="5s"
 Listen=":9090"
 
-[Comms]
-Name="/dev/aurora"
-Baud=19200
+[[Devices]]
+	Name="Com1"
+	UnitAddresses=[2]
+	[Devices.Comms]
+		Name="/dev/aurora"
+		Baud=19200

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/freman/go-aurora"
 
 	"github.com/BurntSushi/toml"
@@ -86,15 +87,21 @@ func withDeadline(deadline time.Duration, f func() error) error {
 	}
 }
 
+type configStruct struct {
+	Name          string
+	Comms         serialConfig
+	UpdateRate    duration
+	Deadline      duration
+	UnitAddresses []byte
+}
+
 func main() {
 	config := struct {
-		UnitAddresses []byte
-		UpdateRate    duration
-		Deadline      duration
-		Listen        string
-		Comms         serialConfig
+		UpdateRate duration
+		Deadline   duration
+		Listen     string
+		Devices    []configStruct
 	}{
-		UnitAddresses: []byte{2},
 		UpdateRate: duration{
 			Duration: time.Minute,
 		},
@@ -102,17 +109,6 @@ func main() {
 			Duration: 5 * time.Second,
 		},
 		Listen: ":8080",
-		Comms: serialConfig{
-			Config: serial.Config{
-				Name:     " /dev/ttyUSB0",
-				Baud:     19200,
-				Parity:   serial.ParityNone,
-				StopBits: serial.Stop1,
-			},
-			ReadTimeout: duration{
-				Duration: time.Duration(0),
-			},
-		},
 	}
 
 	fConfig := flag.String("config", "config.toml", "Path to the configuration file")
@@ -122,116 +118,127 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to parse configuration file due to %v.", err)
 	}
-
 	buffer := results{
 		Results: map[byte]*result{},
 	}
 
-	port, err := serial.OpenPort(config.Comms.Normalise())
-	if err != nil {
-		log.Fatalf("Unable to open serial port due to %v.", err)
-	}
+	for _, device := range config.Devices {
+		go func(device configStruct) {
+			deadline := device.Deadline.Duration
+			if deadline == 0 {
+				deadline = config.Deadline.Duration
+			}
 
-	inverter := &aurora.Inverter{
-		Conn: port,
-	}
+			updateRate := device.UpdateRate.Duration
+			if updateRate == 0 {
+				updateRate = config.UpdateRate.Duration
+			}
 
-	for _, address := range config.UnitAddresses {
-		inverter.Address = address
-		buffer.Results[address] = &result{
-			Address: address,
-		}
+			port, err := serial.OpenPort(device.Comms.Normalise())
+			if err != nil {
+				log.Fatalf("Unable to open serial port due to %v.", err)
+			}
 
-		err := withDeadline(config.Deadline.Duration, func() (err error) {
-			buffer.Results[address].SerialNumber, err = inverter.SerialNumber()
-			return
-		})
+			inverter := &aurora.Inverter{
+				Conn: port,
+			}
 
-		if err != nil {
-			log.Fatalf("Unable to communicate with inverter at address %d, error was %v", address, err)
-		}
-	}
-
-	go func() {
-		ticker := time.NewTicker(config.UpdateRate.Duration)
-		now := time.Now()
-		for {
-			for _, address := range config.UnitAddresses {
-				buffer.RLock()
+			for _, address := range device.UnitAddresses {
 				inverter.Address = address
-				r := &result{
-					Address:      address,
-					SerialNumber: buffer.Results[address].SerialNumber,
-					Time:         now,
+				buffer.Results[address] = &result{
+					Address: address,
 				}
-				buffer.RUnlock()
 
-				err := withDeadline(config.Deadline.Duration, func() error {
-					var err error
-					if r.BoosterTemperature, err = inverter.BoosterTemperature(); err != nil {
-						return err
-					}
-					if r.InverterTemperature, err = inverter.InverterTemperature(); err != nil {
-						return err
-					}
-					if r.Frequency, err = inverter.Frequency(); err != nil {
-						return err
-					}
-					if r.GridVoltage, err = inverter.GridVoltage(); err != nil {
-						return err
-					}
-					if r.GridCurrent, err = inverter.GridCurrent(); err != nil {
-						return err
-					}
-					if r.GridPower, err = inverter.GridPower(); err != nil {
-						return err
-					}
-					if r.GridRunTime.Duration, err = inverter.GridRunTime(); err != nil {
-						return err
-					}
-					if r.Input1Voltage, err = inverter.Input1Voltage(); err != nil {
-						return err
-					}
-					if r.Input1Current, err = inverter.Input1Current(); err != nil {
-						return err
-					}
-					if r.Input2Voltage, err = inverter.Input2Voltage(); err != nil {
-						return err
-					}
-					if r.Input2Current, err = inverter.Input2Current(); err != nil {
-						return err
-					}
-					if r.Joules, err = inverter.Joules(); err != nil {
-						return err
-					}
-					if r.DailyEnergy, err = inverter.DailyEnergy(); err != nil {
-						return err
-					}
-					if r.WeeklyEnergy, err = inverter.WeeklyEnergy(); err != nil {
-						return err
-					}
-					if r.MonthlyEnergy, err = inverter.MonthlyEnergy(); err != nil {
-						return err
-					}
-					if r.YearlyEnergy, err = inverter.YearlyEnergy(); err != nil {
-						return err
-					}
-					if r.TotalEnergy, err = inverter.TotalEnergy(); err != nil {
-						return err
-					}
-					r.TotalRunTime.Duration, err = inverter.TotalRunTime()
-					return err
+				err := withDeadline(deadline, func() (err error) {
+					buffer.Results[address].SerialNumber, err = inverter.SerialNumber()
+					return
 				})
 
-				if err == nil {
-					buffer.Lock()
-					buffer.Results[address] = r
-					buffer.Unlock()
+				if err != nil {
+					log.Fatalf("Unable to communicate with inverter at address %d, error was %v", address, err)
 				}
 			}
-			now = <-ticker.C
-		}
-	}()
+
+			ticker := time.NewTicker(updateRate)
+			now := time.Now()
+			for {
+				for _, address := range device.UnitAddresses {
+					buffer.RLock()
+					inverter.Address = address
+					r := &result{
+						Address:      address,
+						SerialNumber: buffer.Results[address].SerialNumber,
+						Time:         now,
+					}
+					buffer.RUnlock()
+
+					err := withDeadline(deadline, func() error {
+						var err error
+						if r.BoosterTemperature, err = inverter.BoosterTemperature(); err != nil {
+							return err
+						}
+						if r.InverterTemperature, err = inverter.InverterTemperature(); err != nil {
+							return err
+						}
+						if r.Frequency, err = inverter.Frequency(); err != nil {
+							return err
+						}
+						if r.GridVoltage, err = inverter.GridVoltage(); err != nil {
+							return err
+						}
+						if r.GridCurrent, err = inverter.GridCurrent(); err != nil {
+							return err
+						}
+						if r.GridPower, err = inverter.GridPower(); err != nil {
+							return err
+						}
+						if r.GridRunTime.Duration, err = inverter.GridRunTime(); err != nil {
+							return err
+						}
+						if r.Input1Voltage, err = inverter.Input1Voltage(); err != nil {
+							return err
+						}
+						if r.Input1Current, err = inverter.Input1Current(); err != nil {
+							return err
+						}
+						if r.Input2Voltage, err = inverter.Input2Voltage(); err != nil {
+							return err
+						}
+						if r.Input2Current, err = inverter.Input2Current(); err != nil {
+							return err
+						}
+						if r.Joules, err = inverter.Joules(); err != nil {
+							return err
+						}
+						if r.DailyEnergy, err = inverter.DailyEnergy(); err != nil {
+							return err
+						}
+						if r.WeeklyEnergy, err = inverter.WeeklyEnergy(); err != nil {
+							return err
+						}
+						if r.MonthlyEnergy, err = inverter.MonthlyEnergy(); err != nil {
+							return err
+						}
+						if r.YearlyEnergy, err = inverter.YearlyEnergy(); err != nil {
+							return err
+						}
+						if r.TotalEnergy, err = inverter.TotalEnergy(); err != nil {
+							return err
+						}
+						r.TotalRunTime.Duration, err = inverter.TotalRunTime()
+						return err
+					})
+
+					if err == nil {
+						buffer.Lock()
+						buffer.Results[address] = r
+						buffer.Unlock()
+					}
+				}
+				now = <-ticker.C
+			}
+		}(device)
+	}
 
 	http.HandleFunc("/json", func(w http.ResponseWriter, r *http.Request) {
 		buffer.RLock()

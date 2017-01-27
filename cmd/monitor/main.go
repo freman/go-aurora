@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/freman/go-aurora"
 
 	"github.com/BurntSushi/toml"

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -42,7 +43,7 @@ type result struct {
 
 type results struct {
 	sync.RWMutex
-	Results map[byte]*result
+	Results map[string]*result
 }
 
 type serialConfig struct {
@@ -118,7 +119,7 @@ func main() {
 		log.Fatalf("Unable to parse configuration file due to %v.", err)
 	}
 	buffer := results{
-		Results: map[byte]*result{},
+		Results: map[string]*result{},
 	}
 
 	for _, device := range config.Devices {
@@ -143,18 +144,19 @@ func main() {
 			}
 
 			for _, address := range device.UnitAddresses {
+				name := fmt.Sprintf("%s::%d", device.Comms.Name, address)
 				inverter.Address = address
-				buffer.Results[address] = &result{
+				buffer.Results[name] = &result{
 					Address: address,
 				}
 
 				err := withDeadline(deadline, func() (err error) {
-					buffer.Results[address].SerialNumber, err = inverter.SerialNumber()
+					buffer.Results[name].SerialNumber, err = inverter.SerialNumber()
 					return
 				})
 
 				if err != nil {
-					log.Fatalf("Unable to communicate with inverter at address %d, error was %v", address, err)
+					log.Fatalf("Unable to communicate with inverter on port %s at address %d, error was %v", device.Comms.Name, address, err)
 				}
 			}
 
@@ -162,11 +164,12 @@ func main() {
 			now := time.Now()
 			for {
 				for _, address := range device.UnitAddresses {
+					name := fmt.Sprintf("%s::%d", device.Comms.Name, address)
 					buffer.RLock()
 					inverter.Address = address
 					r := &result{
 						Address:      address,
-						SerialNumber: buffer.Results[address].SerialNumber,
+						SerialNumber: buffer.Results[name].SerialNumber,
 						Time:         now,
 					}
 					buffer.RUnlock()
@@ -230,7 +233,7 @@ func main() {
 
 					if err == nil {
 						buffer.Lock()
-						buffer.Results[address] = r
+						buffer.Results[name] = r
 						buffer.Unlock()
 					}
 				}

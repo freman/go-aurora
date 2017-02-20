@@ -5,14 +5,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/freman/go-aurora"
 
 	"github.com/BurntSushi/toml"
+	log "github.com/Sirupsen/logrus"
 	"github.com/matryer/try"
 	"github.com/tarm/serial"
 )
@@ -81,8 +83,10 @@ func withDeadline(deadline time.Duration, f func() error) error {
 	}()
 	select {
 	case err := <-c:
+		log.WithError(err).Error("Call to f() failed with error")
 		return err
 	case <-time.After(deadline):
+		log.WithField("deadline", deadline).Warning("Timeout while reading from inverter")
 		return errors.New("Timeout while waiting for operation to complete")
 	}
 }
@@ -96,12 +100,19 @@ type configStruct struct {
 }
 
 func main() {
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	config := struct {
+		LogPath    string
 		UpdateRate duration
 		Deadline   duration
 		Listen     string
 		Devices    []configStruct
 	}{
+		LogPath: filepath.Join(dir, "main.log"),
 		UpdateRate: duration{
 			Duration: time.Minute,
 		},
@@ -114,16 +125,31 @@ func main() {
 	fConfig := flag.String("config", "config.toml", "Path to the configuration file")
 	flag.Parse()
 
-	_, err := toml.DecodeFile(*fConfig, &config)
+	_, err = toml.DecodeFile(*fConfig, &config)
 	if err != nil {
 		log.Fatalf("Unable to parse configuration file due to %v.", err)
 	}
+
+	f, err := os.OpenFile(config.LogPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+
+	log.Infof("Logging to %s, there should be no further output", config.LogPath)
+	log.SetFormatter(&log.JSONFormatter{})
+	log.SetOutput(f)
+	log.SetLevel(log.DebugLevel)
+
+	log.WithField("config", config).Debug("Configuration")
+
 	buffer := results{
 		Results: map[string]*result{},
 	}
 
 	for _, device := range config.Devices {
 		go func(device configStruct) {
+			logger := log.WithField("coms", device.Comms.Name)
 			deadline := device.Deadline.Duration
 			if deadline == 0 {
 				deadline = config.Deadline.Duration
@@ -136,7 +162,7 @@ func main() {
 
 			port, err := serial.OpenPort(device.Comms.Normalise())
 			if err != nil {
-				log.Fatalf("Unable to open serial port due to %v.", err)
+				log.WithError(err).Fatal("Startup error: Unable to open serial port")
 			}
 
 			inverter := &aurora.Inverter{
@@ -144,6 +170,7 @@ func main() {
 			}
 
 			for _, address := range device.UnitAddresses {
+				logger := logger.WithField("address", address)
 				name := fmt.Sprintf("%s::%d", device.Comms.Name, address)
 				inverter.Address = address
 				buffer.Results[name] = &result{
@@ -156,7 +183,7 @@ func main() {
 				})
 
 				if err != nil {
-					log.Fatalf("Unable to communicate with inverter on port %s at address %d, error was %v", device.Comms.Name, address, err)
+					logger.WithError(err).Fatal("Startup error: Unable to communicate with inverter")
 				}
 			}
 
@@ -166,6 +193,10 @@ func main() {
 				for _, address := range device.UnitAddresses {
 					name := fmt.Sprintf("%s::%d", device.Comms.Name, address)
 					buffer.RLock()
+					logger := logger.WithFields(log.Fields{
+						"address": address,
+						"serial":  buffer.Results[name].SerialNumber,
+					})
 					inverter.Address = address
 					r := &result{
 						Address:      address,
@@ -177,57 +208,77 @@ func main() {
 					err := withDeadline(deadline, func() error {
 						var err error
 						if r.BoosterTemperature, err = inverter.BoosterTemperature(); err != nil {
+							logger.WithError(err).Warning("Unable to read BoosterTemperature")
 							return err
 						}
 						if r.InverterTemperature, err = inverter.InverterTemperature(); err != nil {
+							logger.WithError(err).Warning("Unable to read InverterTemperature")
 							return err
 						}
 						if r.Frequency, err = inverter.Frequency(); err != nil {
+							logger.WithError(err).Warning("Unable to read Frequency")
 							return err
 						}
 						if r.GridVoltage, err = inverter.GridVoltage(); err != nil {
+							logger.WithError(err).Warning("Unable to read GridVoltage")
 							return err
 						}
 						if r.GridCurrent, err = inverter.GridCurrent(); err != nil {
+							logger.WithError(err).Warning("Unable to read GridCurrent")
 							return err
 						}
 						if r.GridPower, err = inverter.GridPower(); err != nil {
+							logger.WithError(err).Warning("Unable to read GridPower")
 							return err
 						}
 						if r.GridRunTime.Duration, err = inverter.GridRunTime(); err != nil {
+							logger.WithError(err).Warning("Unable to read GridRunTime")
 							return err
 						}
 						if r.Input1Voltage, err = inverter.Input1Voltage(); err != nil {
+							logger.WithError(err).Warning("Unable to read Input1Voltage")
 							return err
 						}
 						if r.Input1Current, err = inverter.Input1Current(); err != nil {
+							logger.WithError(err).Warning("Unable to read Input1Current")
 							return err
 						}
 						if r.Input2Voltage, err = inverter.Input2Voltage(); err != nil {
+							logger.WithError(err).Warning("Unable to read Input2Voltage")
 							return err
 						}
 						if r.Input2Current, err = inverter.Input2Current(); err != nil {
+							logger.WithError(err).Warning("Unable to read Input2Current")
 							return err
 						}
 						if r.Joules, err = inverter.Joules(); err != nil {
+							logger.WithError(err).Warning("Unable to read Joules")
 							return err
 						}
 						if r.DailyEnergy, err = inverter.DailyEnergy(); err != nil {
+							logger.WithError(err).Warning("Unable to read DailyEnergy")
 							return err
 						}
 						if r.WeeklyEnergy, err = inverter.WeeklyEnergy(); err != nil {
+							logger.WithError(err).Warning("Unable to read WeeklyEnergy")
 							return err
 						}
 						if r.MonthlyEnergy, err = inverter.MonthlyEnergy(); err != nil {
+							logger.WithError(err).Warning("Unable to read MonthlyEnergy")
 							return err
 						}
 						if r.YearlyEnergy, err = inverter.YearlyEnergy(); err != nil {
+							logger.WithError(err).Warning("Unable to read YearlyEnergy")
 							return err
 						}
 						if r.TotalEnergy, err = inverter.TotalEnergy(); err != nil {
+							logger.WithError(err).Warning("Unable to read TotalEnergy")
 							return err
 						}
 						r.TotalRunTime.Duration, err = inverter.TotalRunTime()
+						if err != nil {
+							logger.WithError(err).Warning("Unable to read TotalRunTime")
+						}
 						return err
 					})
 
@@ -243,6 +294,8 @@ func main() {
 	}
 
 	http.HandleFunc("/json", func(w http.ResponseWriter, r *http.Request) {
+		logger := log.WithField("remoteaddr", r.RemoteAddr)
+		logger.Info("GET /json")
 		buffer.RLock()
 		defer buffer.RUnlock()
 		js, err := json.Marshal(buffer.Results)

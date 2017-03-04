@@ -83,7 +83,7 @@ func withDeadline(deadline time.Duration, f func() error) error {
 	}()
 	select {
 	case err := <-c:
-		log.WithError(err).Error("Call to f() failed with error")
+		log.WithError(err).Errorf("Call to f() failed with error, %s", err.Error())
 		return err
 	case <-time.After(deadline):
 		log.WithField("deadline", deadline).Warning("Timeout while reading from inverter")
